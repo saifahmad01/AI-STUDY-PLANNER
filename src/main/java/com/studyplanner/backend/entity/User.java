@@ -2,7 +2,6 @@ package com.studyplanner.backend.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
-
 import java.util.UUID;
 import java.time.LocalDateTime;
 
