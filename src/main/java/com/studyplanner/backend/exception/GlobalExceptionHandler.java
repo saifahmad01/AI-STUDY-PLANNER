@@ -1,5 +1,6 @@
 package com.studyplanner.backend.exception;
 
+import com.studyplanner.backend.exception.ErrorResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
