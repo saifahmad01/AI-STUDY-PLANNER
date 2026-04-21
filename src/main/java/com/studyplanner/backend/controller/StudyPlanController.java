@@ -1,5 +1,6 @@
 package com.studyplanner.backend.controller;
 
+import com.studyplanner.backend.dto.request.SessionCompleteRequest;
 import com.studyplanner.backend.dto.request.StudyPlanRequest;
 import com.studyplanner.backend.dto.response.StudyPlanResponse;
 import com.studyplanner.backend.dto.response.StudySessionResponse;
@@ -108,10 +109,11 @@ public class StudyPlanController {
     @PatchMapping("/sessions/{sessionId}/complete")
     public ResponseEntity<StudySessionResponse> completeSession(
             @PathVariable UUID sessionId,
-            @RequestParam(required = false) Integer actualDurationMinutes,
-            @RequestParam(required = false) Short focusScore,
-            @RequestParam(required = false) String notes) {
+            @Valid @RequestBody SessionCompleteRequest request) {
         return ResponseEntity.ok(
-                studyPlanService.completeSession(sessionId, actualDurationMinutes, focusScore, notes));
+                studyPlanService.completeSession(sessionId,
+                        request.getActualDurationMinutes(),
+                        request.getFocusScore(),
+                        request.getNotes()));
     }
 }
