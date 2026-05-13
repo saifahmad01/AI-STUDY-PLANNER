@@ -60,4 +60,74 @@ class UserServiceImplTest {
 
         verify(userRepository).save(any(User.class));
     }
+
+    @Test
+    void shouldThrowExceptionWhenEmailAlreadyExists() {
+
+        // Arrange
+        UserRequest request = UserRequest.builder()
+                .name("Saif")
+                .email("saif@gmail.com")
+                .password("123")
+                .build();
+
+        when(userRepository.existsByEmail(request.getEmail()))
+                .thenReturn(true);
+
+        // Act & Assert
+        IllegalArgumentException exception =
+                assertThrows(
+                        IllegalArgumentException.class,
+                        () -> userService.createUser(request)
+                );
+
+        assertEquals(
+                "Email is already registered: saif@gmail.com",
+                exception.getMessage()
+        );
+
+        verify(userRepository, never()).save(any(User.class));
+    }
+
+    @Test
+    void shouldReturnUserById() {
+
+        UUID userId = UUID.randomUUID();
+
+        User user = User.builder()
+                .id(userId)
+                .name("Saif")
+                .email("saif@gmail.com")
+                .build();
+
+        when(userRepository.findById(userId))
+                .thenReturn(Optional.of(user));
+
+        UserResponse response =
+                userService.getUserById(userId);
+
+        assertNotNull(response);
+        assertEquals(userId, response.getId());
+        assertEquals("Saif", response.getName());
+    }
+
+    @Test
+    void shouldThrowExceptionWhenUserNotFound() {
+
+        UUID userId = UUID.randomUUID();
+
+        when(userRepository.findById(userId))
+                .thenReturn(Optional.empty());
+
+        ResourceNotFoundException exception =
+                assertThrows(
+                        ResourceNotFoundException.class,
+                        () -> userService.getUserById(userId)
+                );
+
+        assertEquals(
+                "User not found with id: " + userId,
+                exception.getMessage()
+        );
+    }
 }
