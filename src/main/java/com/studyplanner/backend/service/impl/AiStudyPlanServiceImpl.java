@@ -23,7 +23,7 @@ import java.util.stream.Collectors;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class AiStudyPlanServiceImpl implements AiStudyPlanService {
+public class  AiStudyPlanServiceImpl implements AiStudyPlanService {
 
     private final StudyPlanRepository studyPlanRepository;
     private final StudySessionRepository studySessionRepository;
