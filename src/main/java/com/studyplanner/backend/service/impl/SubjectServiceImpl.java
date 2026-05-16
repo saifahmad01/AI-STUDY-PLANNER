@@ -5,9 +5,11 @@ import com.studyplanner.backend.dto.response.SubjectResponse;
 import com.studyplanner.backend.entity.Subject;
 import com.studyplanner.backend.entity.User;
 import com.studyplanner.backend.exception.ResourceNotFoundException;
+import com.studyplanner.backend.mapper.SubjectMapper;
 import com.studyplanner.backend.repository.SubjectRepository;
 import com.studyplanner.backend.repository.UserRepository;
 import com.studyplanner.backend.service.SubjectService;
+
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -23,21 +25,27 @@ public class SubjectServiceImpl implements SubjectService {
 
     private final SubjectRepository subjectRepository;
     private final UserRepository userRepository;
+    private final SubjectMapper subjectMapper;
 
     @Override
     public SubjectResponse createSubject(UUID userId, SubjectRequest request) {
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + userId));
 
-        Subject subject = Subject.builder()
-                .user(user)
-                .name(request.getName())
-                .category(request.getCategory())
-                .colorHex(request.getColorHex() != null ? request.getColorHex() : "#6B7280")
-                .build();
+        User user = userRepository.findById(userId)
+                .orElseThrow(() ->
+                        new ResourceNotFoundException(
+                                "User not found with id: " + userId));
+
+        Subject subject = subjectMapper.toEntity(request);
+
+        subject.setUser(user);
+
+        if (subject.getColorHex() == null) {
+            subject.setColorHex("#6B7280");
+        }
 
         Subject saved = subjectRepository.save(subject);
-        return mapToResponse(saved);
+
+        return subjectMapper.toResponse(saved);
     }
 
     @Override
@@ -45,15 +53,16 @@ public class SubjectServiceImpl implements SubjectService {
     public SubjectResponse getSubjectById(UUID subjectId) {
         Subject subject = subjectRepository.findById(subjectId)
                 .orElseThrow(() -> new ResourceNotFoundException("Subject not found with id: " + subjectId));
-        return mapToResponse(subject);
+        return subjectMapper.toResponse(subject);
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<SubjectResponse> getAllSubjectsByUser(UUID userId) {
+
         return subjectRepository.findByUserId(userId)
                 .stream()
-                .map(this::mapToResponse)
+                .map(subjectMapper::toResponse)
                 .collect(Collectors.toList());
     }
 
@@ -62,23 +71,24 @@ public class SubjectServiceImpl implements SubjectService {
     public List<SubjectResponse> getActiveSubjectsByUser(UUID userId) {
         return subjectRepository.findByUserIdAndIsArchived(userId, false)
                 .stream()
-                .map(this::mapToResponse)
+                .map(subjectMapper::toResponse)
                 .collect(Collectors.toList());
     }
 
     @Override
-    public SubjectResponse updateSubject(UUID subjectId, SubjectRequest request) {
-        Subject subject = subjectRepository.findById(subjectId)
-                .orElseThrow(() -> new ResourceNotFoundException("Subject not found with id: " + subjectId));
+    public SubjectResponse updateSubject(UUID subjectId,
+                                         SubjectRequest request) {
 
-        subject.setName(request.getName());
-        subject.setCategory(request.getCategory());
-        if (request.getColorHex() != null) {
-            subject.setColorHex(request.getColorHex());
-        }
+        Subject subject = subjectRepository.findById(subjectId)
+                .orElseThrow(() ->
+                        new ResourceNotFoundException(
+                                "Subject not found with id: " + subjectId));
+
+        subjectMapper.updateSubjectFromDto(request, subject);
 
         Subject updated = subjectRepository.save(subject);
-        return mapToResponse(updated);
+
+        return subjectMapper.toResponse(updated);
     }
 
     @Override
@@ -88,7 +98,7 @@ public class SubjectServiceImpl implements SubjectService {
 
         subject.setIsArchived(true);
         Subject archived = subjectRepository.save(subject);
-        return mapToResponse(archived);
+        return subjectMapper.toResponse(archived);
     }
 
     @Override
@@ -99,15 +109,4 @@ public class SubjectServiceImpl implements SubjectService {
         subjectRepository.deleteById(subjectId);
     }
 
-    // ── Mapper ──────────────────────────────────────────────────
-    private SubjectResponse mapToResponse(Subject subject) {
-        return SubjectResponse.builder()
-                .id(subject.getId())
-                .name(subject.getName())
-                .category(subject.getCategory())
-                .colorHex(subject.getColorHex())
-                .isArchived(subject.getIsArchived())
-                .createdAt(subject.getCreatedAt())
-                .build();
-    }
 }
