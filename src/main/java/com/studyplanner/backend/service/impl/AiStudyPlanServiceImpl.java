@@ -8,6 +8,8 @@ import com.studyplanner.backend.dto.response.StudyPlanResponse;
 import com.studyplanner.backend.dto.response.StudySessionResponse;
 import com.studyplanner.backend.entity.*;
 import com.studyplanner.backend.exception.ResourceNotFoundException;
+import com.studyplanner.backend.mapper.StudyPlanMapper;
+import com.studyplanner.backend.mapper.StudySessionMapper;
 import com.studyplanner.backend.repository.*;
 import com.studyplanner.backend.service.AiStudyPlanService;
 import lombok.RequiredArgsConstructor;
@@ -33,6 +35,9 @@ public class  AiStudyPlanServiceImpl implements AiStudyPlanService {
     private final OpenRouterClient openRouterClient;
     private final AiStudyPlanPromptBuilder promptBuilder;
     private final AiStudyPlanParser aiStudyPlanParser;
+
+    private final StudyPlanMapper studyPlanMapper;
+    private final StudySessionMapper studySessionMapper;
 
     private static final int REVIEW_DAYS = 5;
 
@@ -73,18 +78,35 @@ public class  AiStudyPlanServiceImpl implements AiStudyPlanService {
     }
 
     // Saves plan and creates the associated sessions
-    private StudyPlanResponse initAndSave(User user, Subject subject, StudyPlanRequest aiPlan) {
+    private StudyPlanResponse initAndSave(User user,
+                                          Subject subject,
+                                          StudyPlanRequest aiPlan) {
+
         StudyPlan plan = mapToEntity(user, subject, aiPlan);
+
         StudyPlan saved = studyPlanRepository.save(plan);
 
-        List<StudySession> sessions = createSchedule(saved, aiPlan.getTopics());
+        List<StudySession> sessions =
+                createSchedule(saved, aiPlan.getTopics());
+
         studySessionRepository.saveAll(sessions);
 
-        // Update counts after sessions are generated
         saved.setTotalSessions(sessions.size());
         saved.setCompletedSessions(0);
 
-        return mapToResponse(studyPlanRepository.save(saved), sessions);
+        StudyPlan updatedPlan =
+                studyPlanRepository.save(saved);
+
+        StudyPlanResponse response =
+                studyPlanMapper.toResponse(updatedPlan);
+
+        response.setSessions(
+                sessions.stream()
+                        .map(studySessionMapper::toResponse)
+                        .collect(Collectors.toList())
+        );
+
+        return response;
     }
 
     // Distributes topics across the available dates
@@ -150,31 +172,5 @@ public class  AiStudyPlanServiceImpl implements AiStudyPlanService {
     private User getUser(UUID id) {
         return userRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found: " + id));
-    }
-
-    private StudyPlanResponse mapToResponse(StudyPlan p, List<StudySession> s) {
-        int total = p.getTotalSessions() != null ? p.getTotalSessions() : 0;
-        int comp = p.getCompletedSessions() != null ? p.getCompletedSessions() : 0;
-
-        return StudyPlanResponse.builder()
-                .id(p.getId()).userId(p.getUser().getId())
-                .subjectId(p.getSubject() != null ? p.getSubject().getId() : null)
-                .subjectName(p.getSubject() != null ? p.getSubject().getName() : null)
-                .title(p.getTitle()).goal(p.getGoal())
-                .difficulty(p.getDifficulty().name()).status(p.getStatus().name())
-                .startDate(p.getStartDate()).endDate(p.getEndDate())
-                .dailyHours(p.getDailyHours()).totalSessions(total)
-                .completedSessions(comp).progressPercent(total > 0 ? (comp * 100) / total : 0)
-                .createdAt(p.getCreatedAt()).updatedAt(p.getUpdatedAt())
-                .sessions(s.stream().map(this::toSessionDto).collect(Collectors.toList()))
-                .build();
-    }
-
-    private StudySessionResponse toSessionDto(StudySession s) {
-        return StudySessionResponse.builder()
-                .id(s.getId()).planId(s.getPlan().getId()).scheduledDate(s.getScheduledDate())
-                .topic(s.getTopic()).durationMinutes(s.getDurationMinutes()).completed(s.getCompleted())
-                .actualDurationMinutes(s.getActualDurationMinutes()).focusScore(s.getFocusScore())
-                .notes(s.getNotes()).completedAt(s.getCompletedAt()).build();
     }
 }
