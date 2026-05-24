@@ -51,11 +51,11 @@ public class  AiStudyPlanServiceImpl implements AiStudyPlanService {
 
     @Override
     @Transactional
-    public StudyPlanResponse generatePlanWithSubject(UUID userId, UUID subjectId, StudyPlanRequest request) {
-        User user = getUser(userId);
+    public StudyPlanResponse generatePlanWithSubject(UUID subjectId, StudyPlanRequest request) {
         Subject subject = subjectRepository.findById(subjectId)
                 .orElseThrow(() -> new ResourceNotFoundException("Subject not found: " + subjectId));
 
+        User user = subject.getUser();
         StudyPlanRequest aiDetails = getAiPlan(request);
         return initAndSave(user, subject, aiDetails);
     }
@@ -79,29 +79,61 @@ public class  AiStudyPlanServiceImpl implements AiStudyPlanService {
 
     // Saves plan and creates the associated sessions
     private StudyPlanResponse initAndSave(User user,
-                                          Subject subject,
-                                          StudyPlanRequest aiPlan) {
+                                           Subject subject,
+                                           StudyPlanRequest aiPlan) {
 
-        StudyPlan plan = mapToEntity(user, subject, aiPlan);
+        Optional<StudyPlan> existingPlanOpt = studyPlanRepository.findByUser_IdAndTitle(user.getId(), aiPlan.getTitle());
 
-        StudyPlan saved = studyPlanRepository.save(plan);
+        StudyPlan plan;
+        List<StudySession> newSessions;
+        int completedCount = 0;
 
-        List<StudySession> sessions =
-                createSchedule(saved, aiPlan.getTopics());
+        if (existingPlanOpt.isPresent()) {
+            plan = existingPlanOpt.get();
+            // Increment version number
+            plan.setVersion(plan.getVersion() + 1);
 
-        studySessionRepository.saveAll(sessions);
+            // Update plan details with new AI plan details using mapper
+            studyPlanMapper.updateEntityFromDto(aiPlan, subject, plan);
 
-        saved.setTotalSessions(sessions.size());
-        saved.setCompletedSessions(0);
+            // Find and delete the pending (uncompleted) sessions
+            List<StudySession> pendingSessions = studySessionRepository.findByPlanIdAndCompleted(plan.getId(), false);
+            studySessionRepository.deleteAll(pendingSessions);
 
-        StudyPlan updatedPlan =
-                studyPlanRepository.save(saved);
+            // Count preserved completed sessions
+            completedCount = (int) studySessionRepository.countByPlanIdAndCompleted(plan.getId(), true);
 
-        StudyPlanResponse response =
-                studyPlanMapper.toResponse(updatedPlan);
+            // Generate a fresh schedule
+            newSessions = createSchedule(plan, aiPlan.getTopics());
+            studySessionRepository.saveAll(newSessions);
 
+            // Update total & completed sessions count
+            plan.setTotalSessions(completedCount + newSessions.size());
+            plan.setCompletedSessions(completedCount);
+
+            plan = studyPlanRepository.save(plan);
+
+        } else {
+            // Plan does not exist: create a new plan using mapper
+            plan = studyPlanMapper.toEntity(aiPlan, user, subject);
+
+            plan = studyPlanRepository.save(plan);
+
+            newSessions = createSchedule(plan, aiPlan.getTopics());
+            studySessionRepository.saveAll(newSessions);
+
+            plan.setTotalSessions(newSessions.size());
+            plan.setCompletedSessions(0);
+
+            plan = studyPlanRepository.save(plan);
+        }
+
+        // Fetch all sessions currently associated with the plan (completed preserved + new sessions)
+        List<StudySession> allSessions = studySessionRepository.findByPlanId(plan.getId());
+
+        StudyPlanResponse response = studyPlanMapper.toResponse(plan);
         response.setSessions(
-                sessions.stream()
+                allSessions.stream()
                         .map(studySessionMapper::toResponse)
                         .collect(Collectors.toList())
         );
@@ -155,19 +187,7 @@ public class  AiStudyPlanServiceImpl implements AiStudyPlanService {
         return seen.get(0) + ", " + seen.get(1) + " and " + (seen.size() - 2) + " more";
     }
 
-    private StudyPlan mapToEntity(User user, Subject subject, StudyPlanRequest dto) {
-        StudyPlan.Difficulty diff;
-        try {
-            diff = StudyPlan.Difficulty.valueOf(dto.getDifficulty().toUpperCase());
-        } catch (Exception e) {
-            diff = StudyPlan.Difficulty.MEDIUM; // Fallback for AI hallucinations
-        }
 
-        return StudyPlan.builder()
-                .user(user).subject(subject).title(dto.getTitle()).goal(dto.getGoal())
-                .difficulty(diff).startDate(dto.getStartDate()).endDate(dto.getEndDate())
-                .dailyHours(dto.getDailyHours()).status(StudyPlan.Status.ACTIVE).build();
-    }
 
     private User getUser(UUID id) {
         return userRepository.findById(id)

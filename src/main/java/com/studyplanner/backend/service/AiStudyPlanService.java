@@ -7,5 +7,5 @@ import java.util.UUID;
 
 public interface AiStudyPlanService {
     StudyPlanResponse generatePlan(UUID userId, StudyPlanRequest request);
-    StudyPlanResponse generatePlanWithSubject(UUID userId, UUID subjectId, StudyPlanRequest request);
+    StudyPlanResponse generatePlanWithSubject(UUID subjectId, StudyPlanRequest request);
 }

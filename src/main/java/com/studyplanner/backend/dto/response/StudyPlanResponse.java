@@ -27,6 +27,7 @@ StudyPlanResponse {
     private LocalDate startDate;
     private LocalDate endDate;
     private Integer dailyHours;
+    private Integer version;
 
     private Integer totalSessions;
     private Integer completedSessions;
