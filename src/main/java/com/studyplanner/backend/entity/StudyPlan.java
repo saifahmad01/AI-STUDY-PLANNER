@@ -68,6 +68,10 @@ public class StudyPlan {
     private Integer totalSessions = 0;
 
     @Builder.Default
+    @Column(name = "version" , nullable = false)
+    private Integer version = 1;
+
+    @Builder.Default
     @Column(name = "completed_sessions", nullable = false)
     private Integer completedSessions = 0;
 
