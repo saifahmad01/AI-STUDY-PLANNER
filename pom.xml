@@ -23,9 +23,9 @@
     <!-- ✅ Java Version -->
     <properties>
         <java.version>21</java.version>
-        <lombok.version>1.18.32</lombok.version>
+        <maven.compiler.source>21</maven.compiler.source>
+        <maven.compiler.target>21</maven.compiler.target>
     </properties>
-
     <dependencies>
 
         <!-- 🔥 Web (REST APIs) -->
@@ -68,7 +68,8 @@
         <dependency>
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>
-            <optional>true</optional>
+            <version>1.18.38</version>
+            <scope>provided</scope>
         </dependency>
 
         <!-- 🔁 DevTools (auto restart) -->
@@ -105,6 +106,13 @@
             <scope>runtime</scope>
         </dependency>
 
+        <!-- MapStruct -->
+        <dependency>
+            <groupId>org.mapstruct</groupId>
+            <artifactId>mapstruct</artifactId>
+            <version>1.5.5.Final</version>
+        </dependency>
+
     </dependencies>
 
     <!-- 🔧 Build -->
@@ -115,23 +123,44 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.11.0</version>
+
                 <configuration>
                     <source>21</source>
                     <target>21</target>
+
                     <annotationProcessorPaths>
+
+                        <!-- Lombok -->
                         <path>
                             <groupId>org.projectlombok</groupId>
                             <artifactId>lombok</artifactId>
-                            <version>${lombok.version}</version>
+                            <version>1.18.38</version>
                         </path>
+
+                        <!-- MapStruct -->
+                        <path>
+                            <groupId>org.mapstruct</groupId>
+                            <artifactId>mapstruct-processor</artifactId>
+                            <version>1.5.5.Final</version>
+                        </path>
+
                     </annotationProcessorPaths>
                 </configuration>
             </plugin>
 
-            <!-- 🚀 Spring Boot Plugin -->
+            <!-- ✅ Spring Boot Maven Plugin -->
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
+                <configuration>
+                    <excludes>
+                        <exclude>
+                            <groupId>org.projectlombok</groupId>
+                            <artifactId>lombok</artifactId>
+                        </exclude>
+                    </excludes>
+                </configuration>
             </plugin>
 
         </plugins>

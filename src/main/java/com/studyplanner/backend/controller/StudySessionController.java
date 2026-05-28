@@ -3,7 +3,7 @@ package com.studyplanner.backend.controller;
 import com.studyplanner.backend.dto.request.SessionCompleteRequest;
 import com.studyplanner.backend.dto.request.StudySessionRequest;
 import com.studyplanner.backend.dto.response.StudySessionResponse;
-import com.studyplanner.backend.service.QuizService;
+import com.studyplanner.backend.service.StudySessionService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -20,7 +20,7 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class StudySessionController {
 
-    private final QuizService.StudySessionService studySessionService;
+    private final StudySessionService studySessionService;
 
 
 
