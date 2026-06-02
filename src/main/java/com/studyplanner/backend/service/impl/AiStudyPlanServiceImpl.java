@@ -7,6 +7,7 @@ import com.studyplanner.backend.dto.request.StudyPlanRequest;
 import com.studyplanner.backend.dto.response.StudyPlanResponse;
 import com.studyplanner.backend.dto.response.StudySessionResponse;
 import com.studyplanner.backend.entity.*;
+import com.studyplanner.backend.exception.BadRequestException;
 import com.studyplanner.backend.exception.ResourceNotFoundException;
 import com.studyplanner.backend.mapper.StudyPlanMapper;
 import com.studyplanner.backend.mapper.StudySessionMapper;
@@ -25,7 +26,7 @@ import java.util.stream.Collectors;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class  AiStudyPlanServiceImpl implements AiStudyPlanService {
+public class AiStudyPlanServiceImpl implements AiStudyPlanService {
 
     private final StudyPlanRepository studyPlanRepository;
     private final StudySessionRepository studySessionRepository;
@@ -45,8 +46,16 @@ public class  AiStudyPlanServiceImpl implements AiStudyPlanService {
     @Transactional
     public StudyPlanResponse generatePlan(UUID userId, StudyPlanRequest request) {
         User user = getUser(userId);
+
+        Subject subject = null;
+        if (request.getSubjectId() != null) {
+            subject = subjectRepository.findById(request.getSubjectId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Subject not found: " + request.getSubjectId()));
+            validateTitleRelevance(request.getTitle(), subject);
+        }
+
         StudyPlanRequest aiDetails = getAiPlan(request);
-        return initAndSave(user, null, aiDetails);
+        return initAndSave(user, subject, aiDetails);
     }
 
     @Override
@@ -54,6 +63,8 @@ public class  AiStudyPlanServiceImpl implements AiStudyPlanService {
     public StudyPlanResponse generatePlanWithSubject(UUID subjectId, StudyPlanRequest request) {
         Subject subject = subjectRepository.findById(subjectId)
                 .orElseThrow(() -> new ResourceNotFoundException("Subject not found: " + subjectId));
+
+        validateTitleRelevance(request.getTitle(), subject);
 
         User user = subject.getUser();
         StudyPlanRequest aiDetails = getAiPlan(request);
@@ -66,8 +77,7 @@ public class  AiStudyPlanServiceImpl implements AiStudyPlanService {
 
         String aiJson = openRouterClient.chat(
                 promptBuilder.buildSystemPrompt(),
-                promptBuilder.buildUserPrompt(request)
-        );
+                promptBuilder.buildUserPrompt(request));
 
         StudyPlanRequest result = aiStudyPlanParser.parse(aiJson);
 
@@ -79,10 +89,11 @@ public class  AiStudyPlanServiceImpl implements AiStudyPlanService {
 
     // Saves plan and creates the associated sessions
     private StudyPlanResponse initAndSave(User user,
-                                           Subject subject,
-                                           StudyPlanRequest aiPlan) {
+                                          Subject subject,
+                                          StudyPlanRequest aiPlan) {
 
-        Optional<StudyPlan> existingPlanOpt = studyPlanRepository.findByUser_IdAndTitle(user.getId(), aiPlan.getTitle());
+        Optional<StudyPlan> existingPlanOpt = studyPlanRepository.findByUser_IdAndTitle(user.getId(),
+                aiPlan.getTitle());
 
         StudyPlan plan;
         List<StudySession> newSessions;
@@ -128,15 +139,15 @@ public class  AiStudyPlanServiceImpl implements AiStudyPlanService {
             plan = studyPlanRepository.save(plan);
         }
 
-        // Fetch all sessions currently associated with the plan (completed preserved + new sessions)
+        // Fetch all sessions currently associated with the plan (completed preserved +
+        // new sessions)
         List<StudySession> allSessions = studySessionRepository.findByPlanId(plan.getId());
 
         StudyPlanResponse response = studyPlanMapper.toResponse(plan);
         response.setSessions(
                 allSessions.stream()
                         .map(studySessionMapper::toResponse)
-                        .collect(Collectors.toList())
-        );
+                        .collect(Collectors.toList()));
 
         return response;
     }
@@ -168,7 +179,8 @@ public class  AiStudyPlanServiceImpl implements AiStudyPlanService {
                     title = "Review: " + getReviewSummary(seen);
                 } else if (topics != null && !topics.isEmpty()) {
                     title = topics.get(topicIdx % topics.size());
-                    if (!seen.contains(title)) seen.add(title);
+                    if (!seen.contains(title))
+                        seen.add(title);
                     topicIdx++;
                 } else {
                     title = "Study Session " + (slot + 1);
@@ -183,14 +195,41 @@ public class  AiStudyPlanServiceImpl implements AiStudyPlanService {
     }
 
     private String getReviewSummary(List<String> seen) {
-        if (seen.size() <= 3) return String.join(", ", seen);
+        if (seen.size() <= 3)
+            return String.join(", ", seen);
         return seen.get(0) + ", " + seen.get(1) + " and " + (seen.size() - 2) + " more";
     }
-
-
 
     private User getUser(UUID id) {
         return userRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found: " + id));
+    }
+
+    private void validateTitleRelevance(String title, Subject subject) {
+        if (subject == null || title == null || title.isBlank()) {
+            return;
+        }
+
+        String systemPrompt = "You are an expert educational system validator. Your task is to determine if a study plan's title is semantically relevant to its assigned subject, taking into account any associated category.\n\n" +
+                "Given the following Subject Name, Subject Category, and Study Plan Title, analyze the relationship between them. Respond with ONLY 'true' if the title is relevant, or 'false' if it is not. Ensure you consider synonyms and related concepts.Analyze the relationship carefully, considering subdomains, concepts, and synonyms related to the subject. Respond with ONLY 'true' if the title is relevant, and 'false' if it is not.";
+
+        String userPrompt = String.format(
+                "Subject Name: %s\nSubject Category: %s\nStudy Plan Title: %s",
+                subject.getName(),
+                subject.getCategory() != null ? subject.getCategory() : "None",
+                title
+        );
+
+        log.info("Checking semantic relevance of title '{}' to subject '{}'", title, subject.getName());
+        String aiResponse = openRouterClient.chat(systemPrompt, userPrompt);
+
+        if (aiResponse == null || !aiResponse.trim().toLowerCase(Locale.ROOT).replaceAll("[^a-z]", "").equals("true")) {
+            throw new BadRequestException(String.format(
+                    "The study plan title '%s' is not relevant to the subject '%s' (Category: %s).",
+                    title,
+                    subject.getName(),
+                    subject.getCategory() != null ? subject.getCategory() : "None"
+            ));
+        }
     }
 }
