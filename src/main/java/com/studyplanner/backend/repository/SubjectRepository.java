@@ -14,6 +14,8 @@ public interface SubjectRepository extends JpaRepository<Subject, UUID> {
 
     List<Subject> findByUserIdAndIsArchived(UUID userId, Boolean isArchived);
 
+    boolean existsByUserIdAndNameIgnoreCase(UUID userId, String name);
+
     boolean existsByUserIdAndName(UUID userId, String name);
 
 

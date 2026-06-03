@@ -18,7 +18,14 @@ public interface StudyPlanRepository extends JpaRepository<StudyPlan, UUID> {
 
     List<StudyPlan> findBySubjectId(UUID subjectId);
 
-    Optional<StudyPlan>  findByUser_IdAndTitle(UUID userid ,String title);
+    Optional<StudyPlan> findByUser_IdAndTitle(UUID userid, String title);
+
+    boolean existsByUserIdAndSubjectIsNullAndTitleIgnoreCase(UUID userId, String title);
+
+    boolean existsByUser_IdAndSubject_IdAndTitleIgnoreCase(
+            UUID userId,
+            UUID subjectId,
+            String title);
 
     long countByUserIdAndStatus(UUID userId, StudyPlan.Status status);
 }

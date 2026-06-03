@@ -35,6 +35,14 @@ public class SubjectServiceImpl implements SubjectService {
                         new ResourceNotFoundException(
                                 "User not found with id: " + userId));
 
+        if (subjectRepository.existsByUserIdAndNameIgnoreCase(
+                userId,
+                request.getName().trim())) {
+
+            throw new IllegalArgumentException(
+                    "Subject '" + request.getName() + "' already exists");
+        }
+
         Subject subject = subjectMapper.toEntity(request);
 
         subject.setUser(user);

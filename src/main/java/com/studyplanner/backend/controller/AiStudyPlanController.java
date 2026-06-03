@@ -10,6 +10,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.UUID;
 
 @Slf4j
@@ -60,5 +61,38 @@ public class AiStudyPlanController {
                 response.getId(), response.getTotalSessions());
 
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    }
+
+    @GetMapping("/{planId}")
+    public ResponseEntity<StudyPlanResponse> getPlanById(
+            @PathVariable UUID planId) {
+
+        log.info("Fetching study plan - planId={}", planId);
+
+        StudyPlanResponse response =
+                aiStudyPlanService.getPlanById(planId);
+
+        return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/user/{userId}")
+    public ResponseEntity<List<StudyPlanResponse>> getUserPlans(
+            @PathVariable UUID userId) {
+
+        log.info("Fetching plans for user={}", userId);
+
+        List<StudyPlanResponse> responses =
+                aiStudyPlanService.getPlansByUserId(userId);
+
+        return ResponseEntity.ok(responses);
+    }
+
+    @GetMapping("/subject/{subjectId}")
+    public ResponseEntity<List<StudyPlanResponse>> getPlansBySubject(
+            @PathVariable UUID subjectId) {
+
+        return ResponseEntity.ok(
+                aiStudyPlanService.getPlansBySubjectId(subjectId)
+        );
     }
 }
