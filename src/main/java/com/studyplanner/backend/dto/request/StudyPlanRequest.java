@@ -17,6 +17,7 @@ public class StudyPlanRequest {
     @Size(max = 200, message = "Title must not exceed 200 characters")
     private String title;
 
+    @NotBlank(message = "Goal is required")
     private String goal;
 
     private UUID subjectId;

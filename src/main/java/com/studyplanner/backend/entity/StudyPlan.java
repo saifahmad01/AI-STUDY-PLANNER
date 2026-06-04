@@ -9,10 +9,11 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "study_plans",
-        uniqueConstraints = {},
-        indexes = {}
-)
+@Table(name = "study_plans", uniqueConstraints = {
+        @UniqueConstraint(name = "uq_study_plans_user_goal", columnNames = { "user_id", "goal" })
+}, indexes = {
+        @Index(name = "idx_study_plans_user_goal", columnList = "user_id, goal")
+})
 @Check(constraints = "end_date > start_date")
 @Data
 @NoArgsConstructor
@@ -40,7 +41,7 @@ public class StudyPlan {
     @Column(name = "title", nullable = false, length = 200)
     private String title;
 
-    @Column(name = "goal", columnDefinition = "TEXT")
+    @Column(name = "goal", nullable = false, columnDefinition = "TEXT")
     private String goal;
 
     @Builder.Default
@@ -67,8 +68,9 @@ public class StudyPlan {
     @Column(name = "total_sessions", nullable = false)
     private Integer totalSessions = 0;
 
+    @Version
     @Builder.Default
-    @Column(name = "version" , nullable = false)
+    @Column(name = "version", nullable = false)
     private Integer version = 1;
 
     @Builder.Default
@@ -88,6 +90,11 @@ public class StudyPlan {
         this.updatedAt = LocalDateTime.now();
     }
 
-    public enum Difficulty { EASY, MEDIUM, HARD }
-    public enum Status     { ACTIVE, PAUSED, COMPLETED, ARCHIVED }
+    public enum Difficulty {
+        EASY, MEDIUM, HARD
+    }
+
+    public enum Status {
+        ACTIVE, PAUSED, COMPLETED, ARCHIVED
+    }
 }

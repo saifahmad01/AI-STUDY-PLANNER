@@ -2,19 +2,21 @@ package com.studyplanner.backend.service.impl;
 
 import com.studyplanner.backend.ai.AiStudyPlanParser;
 import com.studyplanner.backend.ai.AiStudyPlanPromptBuilder;
-import com.studyplanner.backend.ai.OpenRouterClient;
+import com.studyplanner.backend.ai .OpenRouterClient;
 import com.studyplanner.backend.dto.request.StudyPlanRequest;
 import com.studyplanner.backend.dto.response.StudyPlanResponse;
 import com.studyplanner.backend.dto.response.StudySessionResponse;
 import com.studyplanner.backend.entity.*;
 import com.studyplanner.backend.exception.BadRequestException;
 import com.studyplanner.backend.exception.ResourceNotFoundException;
+import com.studyplanner.backend.exception.DuplicateResourceException;
 import com.studyplanner.backend.mapper.StudyPlanMapper;
 import com.studyplanner.backend.mapper.StudySessionMapper;
 import com.studyplanner.backend.repository.*;
 import com.studyplanner.backend.service.AiStudyPlanService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationContext;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -40,26 +42,44 @@ public class AiStudyPlanServiceImpl implements AiStudyPlanService {
     private final StudyPlanMapper studyPlanMapper;
     private final StudySessionMapper studySessionMapper;
 
+    private final ApplicationContext applicationContext;
+
     private static final int REVIEW_DAYS = 5;
 
     @Override
-    @Transactional
     public StudyPlanResponse generatePlan(UUID userId, StudyPlanRequest request) {
         User user = getUser(userId);
 
-        Subject subject = null;
-        if (request.getSubjectId() != null) {
-            subject = subjectRepository.findById(request.getSubjectId())
-                    .orElseThrow(() -> new ResourceNotFoundException("Subject not found: " + request.getSubjectId()));
-            validateTitleRelevance(request.getTitle(), subject);
+        // 1. Service layer validation (No subject checks)
+        if (request.getGoal() == null || request.getGoal().isBlank()) {
+            throw new BadRequestException("Goal is required and cannot be empty");
+        }
+        if (request.getStartDate() == null || request.getEndDate() == null) {
+            throw new BadRequestException("Start date and end date are required");
+        }
+        if (!request.getEndDate().isAfter(request.getStartDate())) {
+            throw new BadRequestException("End date must be after start date");
         }
 
+        // 2. Pure Global Duplicate Check (Subject is always null)
+        boolean titleExists = studyPlanRepository.existsByUserIdAndSubjectIsNullAndTitleIgnoreCase(
+                user.getId(),
+                request.getTitle().trim()
+        );
+
+        if (titleExists) {
+            throw new DuplicateResourceException("A global study plan with the same title already exists.");
+        }
+
+        // 3. AI Break down processing
         StudyPlanRequest aiDetails = getAiPlan(request);
-        return initAndSave(user, subject, aiDetails);
+
+        // 4. Self-proxy call to keep transaction context intact (Passing 'null' explicitly for subject)
+        AiStudyPlanServiceImpl self = applicationContext.getBean(AiStudyPlanServiceImpl.class);
+        return self.initAndSave(user, null, aiDetails);
     }
 
     @Override
-    @Transactional
     public StudyPlanResponse generatePlanWithSubject(UUID subjectId, StudyPlanRequest request) {
         Subject subject = subjectRepository.findById(subjectId)
                 .orElseThrow(() -> new ResourceNotFoundException("Subject not found: " + subjectId));
@@ -67,8 +87,68 @@ public class AiStudyPlanServiceImpl implements AiStudyPlanService {
         validateTitleRelevance(request.getTitle(), subject);
 
         User user = subject.getUser();
+
+        // Service layer validation
+        if (request.getGoal() == null || request.getGoal().isBlank()) {
+            throw new BadRequestException("Goal is required and cannot be empty");
+        }
+        if (request.getStartDate() == null || request.getEndDate() == null) {
+            throw new BadRequestException("Start date and end date are required");
+        }
+        if (!request.getEndDate().isAfter(request.getStartDate())) {
+            throw new BadRequestException("End date must be after start date");
+        }
+
+        if (studyPlanRepository.existsByUser_IdAndSubject_IdAndTitleIgnoreCase(
+                user.getId(),
+                subject.getId(),
+                request.getTitle().trim())) {
+
+            throw new DuplicateResourceException(
+                    "A study plan with the same title already exists for this subject.");
+        }
+
         StudyPlanRequest aiDetails = getAiPlan(request);
-        return initAndSave(user, subject, aiDetails);
+        
+        // Invoke initAndSave via self-proxy to ensure transactional context
+        AiStudyPlanServiceImpl self = applicationContext.getBean(AiStudyPlanServiceImpl.class);
+        return self.initAndSave(user, subject, aiDetails);
+    }
+
+    @Override
+    public StudyPlanResponse getPlanById(UUID planId) {
+
+        StudyPlan studyPlan = studyPlanRepository.findById(planId)
+                .orElseThrow(() ->
+                        new ResourceNotFoundException(
+                                "Study Plan not found with id: " + planId));
+
+        return studyPlanMapper.toResponse(studyPlan);
+    }
+
+    @Override
+    public List<StudyPlanResponse> getPlansByUserId(UUID userId) {
+
+        return studyPlanRepository.findByUserId(userId)
+                .stream()
+                .map(studyPlanMapper::toResponse)
+                .toList();
+    }
+
+    @Override
+    public List<StudyPlanResponse> getPlansBySubjectId(UUID subjectId) {
+
+        List<StudyPlan> studyPlans =
+                studyPlanRepository.findBySubjectId(subjectId);
+
+        if (studyPlans.isEmpty()) {
+            throw new ResourceNotFoundException(
+                    "No study plans found for subject id: " + subjectId);
+        }
+
+        return studyPlans.stream()
+                .map(studyPlanMapper::toResponse)
+                .toList();
     }
 
     // Orchestrates calling AI and parsing response
@@ -81,16 +161,19 @@ public class AiStudyPlanServiceImpl implements AiStudyPlanService {
 
         StudyPlanRequest result = aiStudyPlanParser.parse(aiJson);
 
-        // Keep original dates; don't let AI change the timeline
+        // Keep original dates, title, and goal; don't let AI change these core fields
         result.setStartDate(request.getStartDate());
         result.setEndDate(request.getEndDate());
+        result.setTitle(request.getTitle());
+        result.setGoal(request.getGoal());
         return result;
     }
 
     // Saves plan and creates the associated sessions
-    private StudyPlanResponse initAndSave(User user,
-                                          Subject subject,
-                                          StudyPlanRequest aiPlan) {
+    @Transactional
+    public StudyPlanResponse initAndSave(User user,
+                                         Subject subject,
+                                         StudyPlanRequest aiPlan) {
 
         Optional<StudyPlan> existingPlanOpt = studyPlanRepository.findByUser_IdAndTitle(user.getId(),
                 aiPlan.getTitle());
