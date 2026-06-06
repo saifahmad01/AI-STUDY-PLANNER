@@ -34,6 +34,7 @@ public class StudyPlanResponse {
 
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
+    private String changeReason;
 
     private List<StudySessionResponse> sessions;
 }

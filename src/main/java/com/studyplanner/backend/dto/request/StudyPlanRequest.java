@@ -43,4 +43,12 @@ public class StudyPlanRequest {
      * Later this will be replaced by AI-generated topics.
      */
     private List<String> topics;
+
+    /**
+     * Optional reason for the update.
+     * Stored in version history to explain why this change was made.
+     */
+    @Size(max = 500, message = "Change reason must not exceed 500 characters")
+    private String changeReason;
 }
+
