@@ -11,12 +11,11 @@ import java.util.UUID;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class StudyPlanResponse {
+public class StudyPlanHistoryResponse {
 
     private UUID id;
-    private UUID userId;
-    private UUID subjectId;
-    private String subjectName;
+    private UUID planId;
+    private Integer versionNumber;
 
     private String title;
     private String goal;
@@ -26,15 +25,13 @@ public class StudyPlanResponse {
     private LocalDate startDate;
     private LocalDate endDate;
     private Integer dailyHours;
-    private Integer version;
 
     private Integer totalSessions;
     private Integer completedSessions;
     private Integer progressPercent;
 
-    private LocalDateTime createdAt;
-    private LocalDateTime updatedAt;
     private String changeReason;
+    private LocalDateTime snapshotAt;
 
     private List<StudySessionResponse> sessions;
 }
