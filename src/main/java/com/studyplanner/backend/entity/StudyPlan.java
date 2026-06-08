@@ -69,9 +69,8 @@ public class StudyPlan {
     private Integer totalSessions = 0;
 
     @Version
-    @Builder.Default
     @Column(name = "version", nullable = false)
-    private Integer version = 1;
+    private Long version;
 
     @Builder.Default
     @Column(name = "completed_sessions", nullable = false)
@@ -84,6 +83,9 @@ public class StudyPlan {
     @Builder.Default
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt = LocalDateTime.now();
+
+    @Column(name = "change_reason", length = 500)
+    private String changeReason;
 
     @PreUpdate
     public void onUpdate() {
