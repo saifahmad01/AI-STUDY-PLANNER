@@ -32,7 +32,7 @@ public interface StudyPlanMapper {
     @Mapping(target = "endDate", source = "request.endDate")
     @Mapping(target = "dailyHours", source = "request.dailyHours")
     @Mapping(target = "status", constant = "ACTIVE")
-    @Mapping(target = "version", constant = "1")
+    @Mapping(target = "version", constant = "1L")
     @Mapping(target = "totalSessions", constant = "0")
     @Mapping(target = "completedSessions", constant = "0")
     @Mapping(target = "createdAt", ignore = true)
