@@ -1,4 +1,73 @@
 package com.studyplanner.backend.service.impl;
 
-public class AuthServiceImpl {
+import com.studyplanner.backend.dto.request.LoginRequest;
+import com.studyplanner.backend.dto.request.RegisterRequest;
+import com.studyplanner.backend.dto.response.AuthResponse;
+import com.studyplanner.backend.entity.User;
+import com.studyplanner.backend.exception.DuplicateResourceException;
+import com.studyplanner.backend.repository.UserRepository;
+import com.studyplanner.backend.security.JwtUtil;
+import com.studyplanner.backend.service.AuthService;
+import lombok.RequiredArgsConstructor;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.stereotype.Service;
+
+@Service
+@RequiredArgsConstructor
+public class AuthServiceImpl implements AuthService {
+
+    private final UserRepository userRepository;
+    private final PasswordEncoder passwordEncoder;
+    private final JwtUtil jwtUtil;
+    private final AuthenticationManager authenticationManager;
+
+    @Override
+    public AuthResponse register(RegisterRequest request) {
+        if (userRepository.existsByEmail(request.getEmail())) {
+            throw new DuplicateResourceException("User already exists with email: " + request.getEmail());
+        }
+
+        User user = User.builder()
+                .name(request.getName())
+                .email(request.getEmail())
+                .password(passwordEncoder.encode(request.getPassword()))
+                .build();
+
+        userRepository.save(user);
+
+        String token = jwtUtil.generateToken(user.getEmail());
+
+        return AuthResponse.builder()
+                .userId(user.getId())
+                .token(token)
+                .email(user.getEmail())
+                .name(user.getName())
+                .message("User registered successfully")
+                .build();
+    }
+
+    @Override
+    public AuthResponse login(LoginRequest request) {
+        authenticationManager.authenticate(
+                new UsernamePasswordAuthenticationToken(
+                        request.getEmail(),
+                        request.getPassword()
+                )
+        );
+
+        User user = userRepository.findByEmail(request.getEmail())
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        String token = jwtUtil.generateToken(user.getEmail());
+
+        return AuthResponse.builder()
+                .userId(user.getId())
+                .token(token)
+                .email(user.getEmail())
+                .name(user.getName())
+                .message("Login successful")
+                .build();
+    }
 }
