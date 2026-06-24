@@ -2,6 +2,7 @@ package com.studyplanner.backend.controller;
 
 import com.studyplanner.backend.dto.request.LoginRequest;
 import com.studyplanner.backend.dto.request.RegisterRequest;
+import com.studyplanner.backend.dto.request.TokenRefreshRequest;
 import com.studyplanner.backend.dto.response.AuthResponse;
 import com.studyplanner.backend.service.AuthService;
 import jakarta.validation.Valid;
@@ -29,6 +30,13 @@ public class AuthController {
     @PostMapping("/login")
     public ResponseEntity<AuthResponse> login(@Valid @RequestBody LoginRequest request) {
         AuthResponse response = authService.login(request);
+        return ResponseEntity.ok(response);
+    }
+
+
+    @PostMapping("/refresh-token")
+    public ResponseEntity<AuthResponse> refreshToken(@Valid @RequestBody TokenRefreshRequest request) {
+        AuthResponse response = authService.refreshToken(request);
         return ResponseEntity.ok(response);
     }
 }
