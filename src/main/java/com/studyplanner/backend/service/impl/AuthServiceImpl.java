@@ -2,6 +2,7 @@ package com.studyplanner.backend.service.impl;
 
 import com.studyplanner.backend.dto.request.LoginRequest;
 import com.studyplanner.backend.dto.request.RegisterRequest;
+import com.studyplanner.backend.dto.request.TokenRefreshRequest;
 import com.studyplanner.backend.dto.response.AuthResponse;
 import com.studyplanner.backend.entity.User;
 import com.studyplanner.backend.exception.DuplicateResourceException;
@@ -10,9 +11,12 @@ import com.studyplanner.backend.security.JwtUtil;
 import com.studyplanner.backend.service.AuthService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -37,11 +41,13 @@ public class AuthServiceImpl implements AuthService {
 
         userRepository.save(user);
 
-        String token = jwtUtil.generateToken(user.getEmail());
+        String accessToken = jwtUtil.generateAccessToken(user.getEmail());
+        String refreshToken = jwtUtil.generateRefreshToken(user.getEmail());
 
         return AuthResponse.builder()
                 .userId(user.getId())
-                .token(token)
+                .accessToken(accessToken)
+                .refreshToken(refreshToken)
                 .email(user.getEmail())
                 .name(user.getName())
                 .message("User registered successfully")
@@ -60,14 +66,42 @@ public class AuthServiceImpl implements AuthService {
         User user = userRepository.findByEmail(request.getEmail())
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
-        String token = jwtUtil.generateToken(user.getEmail());
+        String accessToken = jwtUtil.generateAccessToken(user.getEmail());
+        String refreshToken = jwtUtil.generateRefreshToken(user.getEmail());
 
         return AuthResponse.builder()
                 .userId(user.getId())
-                .token(token)
+                .accessToken(accessToken)
+                .refreshToken(refreshToken)
                 .email(user.getEmail())
                 .name(user.getName())
                 .message("Login successful")
+                .build();
+    }
+
+    @Override
+    public AuthResponse refreshToken(TokenRefreshRequest request) {
+        String requestRefreshToken = request.getRefreshToken();
+
+        if (jwtUtil.isTokenExpired(requestRefreshToken)) {
+            throw new BadCredentialsException("Refresh token is expired. Please login again.");
+        }
+
+        String email = jwtUtil.extractUsername(requestRefreshToken);
+
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("User not found for token"));
+
+        String newAccessToken = jwtUtil.generateAccessToken(user.getEmail());
+        String newRefreshToken = jwtUtil.generateRefreshToken(user.getEmail());
+
+        return AuthResponse.builder()
+                .userId(user.getId())
+                .accessToken(newAccessToken)
+                .refreshToken(newRefreshToken)
+                .email(user.getEmail())
+                .name(user.getName())
+                .message("Token refreshed successfully")
                 .build();
     }
 }
