@@ -80,6 +80,20 @@ public class AuthServiceImpl implements AuthService {
     }
 
     @Override
+    public void logout(String refreshToken) {
+        if (jwtUtil.isTokenExpired(refreshToken)) {
+            throw new BadCredentialsException("Token already expired");
+        }
+
+        String type = jwtUtil.extractClaim(refreshToken, claims -> claims.get("type", String.class));
+        if (!"refresh".equals(type)) {
+            throw new BadCredentialsException("Invalid token type provided for logout");
+        }
+
+
+    }
+
+    @Override
     public AuthResponse refreshToken(TokenRefreshRequest request) {
         String requestRefreshToken = request.getRefreshToken();
 
